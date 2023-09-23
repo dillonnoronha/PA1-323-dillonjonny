@@ -1,101 +1,69 @@
 #include <iostream>
 #include <fstream>
-#include <cctype>
+#include <sstream>
 #include <vector>
-
-enum State {
-    START,
-    INTEGER,
-    IDENTIFIER
-};
-
-struct Token {
-    std::string type;
-    std::string value;
-};
 
 class Lexer {
 private:
-    State state = START;
-    std::ifstream file;
+    std::string source_code;
+    std::string::iterator cursor;
+    std::ofstream output_file;
+
+    bool is_whitespace(char c) {
+        return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+    }
 
     bool is_digit(char c) {
         return c >= '0' && c <= '9';
     }
 
-    bool is_alpha(char c) {
-        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+    std::string read_number() {
+        std::string number;
+        while (is_digit(*cursor)) {
+            number += *cursor;
+            cursor++;
+        }
+        return number;
     }
 
 public:
     Lexer(const std::string& filename) {
-        file.open(filename);
-        if (!file.is_open()) {
-            std::cerr << "Error opening file" << std::endl;
-            exit(1);
-        }
+        std::ifstream file(filename);
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        source_code = buffer.str();
+        cursor = source_code.begin();
+        output_file.open("output.txt");
     }
 
-    std::vector<Token> tokenize() {
-        std::vector<Token> tokens;
-        std::string lexeme;
-        char c;
-
-        while (file.get(c)) {
-            switch (state) {
-                case START:
-                    lexeme = "";
-                    if (is_digit(c)) {
-                        state = INTEGER;
-                        lexeme += c;
-                    } else if (is_alpha(c) || c == '_') {
-                        state = IDENTIFIER;
-                        lexeme += c;
-                    }
-                    break;
-
-                case INTEGER:
-                    if (is_digit(c)) {
-                        lexeme += c;
-                    } else {
-                        tokens.push_back({"INTEGER", lexeme});
-                        state = START;
-                        file.unget(); // Return the character to the stream.
-                    }
-                    break;
-
-                case IDENTIFIER:
-                    if (is_alpha(c) || c == '_' || is_digit(c)) {
-                        lexeme += c;
-                    } else {
-                        tokens.push_back({"IDENTIFIER", lexeme});
-                        state = START;
-                        file.unget(); // Return the character to the stream.
-                    }
-                    break;
+    std::pair<std::string, std::string> lexer() {
+        while (cursor != source_code.end()) {
+            if (is_whitespace(*cursor)) {
+                cursor++;
+                continue;
+            } else if (is_digit(*cursor)) {
+                std::string lexeme = read_number();
+                output_file << "NUMBER\t" << lexeme << std::endl;
+                return {"NUMBER", lexeme};
             }
+            // Extend this part for other token types.
         }
+        return {"", ""};
+    }
 
-        // Handle end of file.
-        if (state == INTEGER) {
-            tokens.push_back({"INTEGER", lexeme});
-        } else if (state == IDENTIFIER) {
-            tokens.push_back({"IDENTIFIER", lexeme});
+    void process() {
+        while (cursor != source_code.end()) {
+            lexer();
         }
-
-        return tokens;
+        output_file.close();
     }
 };
 
 int main() {
-    // Use the lexer to process the file "input_sourcecode.txt".
     Lexer lexer("input_sourcecode.txt");
-    std::vector<Token> tokens = lexer.tokenize();
+    lexer.process();
 
-    // Print the identified tokens.
-    for (const auto& token : tokens) {
-        std::cout << token.type << " : " << token.value << std::endl;
-    }
+    std::cout << "Lexical Analysis Completed. Results saved in output.txt.\n";
 
     return 0;
 }
